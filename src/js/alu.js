@@ -8,35 +8,28 @@ Purpose: Handles the raw mathematical operations.
            send back to ui.js for rendering.
 */
 
-class ExecutionJournal {
-    constructor(operationName) {
-        this.title = operationName;
-        this.phases = [];
-        this.currentPhase = null;
+class TraceBuilder {
+    constructor() {
+        this.trace = {
+            operation: "",
+            initialState: {},
+            alignedState: {},
+            rawCalculation: {},
+            finalNormalizedState: {}
+        };
     }
-
-    startPhase(phaseName) {
-        this.currentPhase = { name: phaseName, logs: [] };
-        this.phases.push(this.currentPhase);
-    }
-
-    record(message) {
-        if (this.currentPhase) {
-            this.currentPhase.logs.push(message);
-        }
-    }
-
-    display() {
-        console.log(`\n=================================================`);
-        console.log(`  OPERATION: ${this.title.toUpperCase()}`);
-        console.log(`=================================================`);
-        this.phases.forEach((phase, index) => {
-            console.log(`\n|> STEP ${index + 1}: ${phase.name.toUpperCase()}`);
-            console.log(`-------------------------------------------------`);
-            phase.logs.forEach(log => console.log(`   * ${log}`));
-        });
-        console.log(`=================================================\n`);
-    }
+    
+    setOperation(op) { this.trace.operation = op; }
+    setInitial(data) { this.trace.initialState = data; }
+    setAligned(data) { this.trace.alignedState = data; }
+    setRaw(data) { this.trace.rawCalculation = data; }
+    setFinal(data) { this.trace.finalNormalizedState = data; }
+    
+    getJSON() { return JSON.stringify(this.trace, (key, value) => 
+        typeof value === 'bigint' ? value.toString() : value 
+    , 2); }
+    
+    getObject() { return this.trace; }
 }
 
 const IEEE754Transcoder = {
@@ -72,27 +65,26 @@ const IEEE754Transcoder = {
         const formattedBin = `${binStr.slice(0, 1)} ${binStr.slice(1, 12)} ${binStr.slice(12)}`;
         
         return { hex, binary: formattedBin, raw: assembled };
-    },
-
-    formatBin: (val, bits) => val.toString(2).padStart(bits, '0')
+    }
 };
 
 class FloatingPointALU {
     
     static executeSubtraction(valA, valB) {
-        const journal = new ExecutionJournal(`Subtraction (${valA} - ${valB})`);
+        const trace = new TraceBuilder();
+        trace.setOperation(`Subtraction: ${valA} - ${valB}`);
         
-        journal.startPhase("Decode & Sign Resolution");
         const A = IEEE754Transcoder.decode(valA);
         const B = IEEE754Transcoder.decode(valB);
-        
         const effectiveSignB = B.sign ^ 1n; 
         const isAddition = A.sign === effectiveSignB; 
 
-        journal.record(`A Sign: ${A.sign}, B Effective Sign: ${effectiveSignB}`);
-        journal.record(`Operation resolves to: ${isAddition ? 'ADDITION' : 'MAGNITUDE SUBTRACTION'}`);
+        trace.setInitial({
+            operandA: { sign: A.sign, exponent: A.exponent, significandBase10: A.mantissa.toString(10), significandBase2: A.mantissa.toString(2) },
+            operandB: { sign: B.sign, exponent: B.exponent, significandBase10: B.mantissa.toString(10), significandBase2: B.mantissa.toString(2) },
+            effectiveOperation: isAddition ? "ADDITION" : "SUBTRACTION"
+        });
 
-        journal.startPhase("Alignment via Extended Register (Mantissa + 3 GRS bits)");
         let expDiff = A.exponent - B.exponent;
         let larger = A, smaller = B;
 
@@ -118,10 +110,13 @@ class FloatingPointALU {
         }
         extSmaller |= stickyAccumulator; 
 
-        journal.record(`Aligned Extended Larger:  ${extLarger.toString(2)}`);
-        journal.record(`Aligned Extended Smaller: ${extSmaller.toString(2)}`);
+        trace.setAligned({
+            targetExponent: larger.exponent,
+            exponentDifference: expDiff,
+            alignedLargerSignificandBase10: extLarger.toString(10),
+            alignedSmallerSignificandBase10: extSmaller.toString(10)
+        });
 
-        journal.startPhase("Arithmetic & Normalization");
         let resMantissaExt = 0n;
         let resSign = larger.sign;
 
@@ -131,6 +126,12 @@ class FloatingPointALU {
             resMantissaExt = extLarger - extSmaller;
             if (resMantissaExt === 0n) resSign = 0n; 
         }
+
+        trace.setRaw({
+            mathEquationBase10: `${extLarger.toString(10)} ${isAddition ? '+' : '-'} ${extSmaller.toString(10)}`,
+            rawResultSignificandBase10: resMantissaExt.toString(10),
+            rawResultSignificandBase2: resMantissaExt.toString(2)
+        });
 
         let resExp = larger.exponent;
 
@@ -149,18 +150,15 @@ class FloatingPointALU {
             resExp = 0n;
         }
 
-        journal.startPhase("GRS Extraction & Rounding");
         const s = (resMantissaExt & 1n);
         const r = (resMantissaExt >> 1n) & 1n;
         const g = (resMantissaExt >> 2n) & 1n;
-        
         let resMantissa = resMantissaExt >> 3n;
-        journal.record(`Extracted GRS -> Guard: ${g}, Round: ${r}, Sticky: ${s}`);
 
+        let roundedUp = false;
         if (g === 1n && (r === 1n || s === 1n || (resMantissa & 1n) === 1n)) {
             resMantissa += 1n;
-            journal.record(`Rounded Up (+1 to mantissa).`);
-            
+            roundedUp = true;
             if (resMantissa >= (1n << 53n)) {
                 resMantissa >>= 1n;
                 resExp += 1n;
@@ -170,37 +168,54 @@ class FloatingPointALU {
         const finalFraction = resMantissa & 0xFFFFFFFFFFFFFn;
         const finalOutput = IEEE754Transcoder.encode(resSign, resExp, finalFraction);
 
-        journal.record(`FINAL BINARY: ${finalOutput.binary}`);
-        journal.record(`FINAL HEX:    ${finalOutput.hex}`);
+        trace.setFinal({
+            extractedGRS: `${g}${r}${s}`,
+            wasRoundedUp: roundedUp,
+            finalSignificandBase10: resMantissa.toString(10),
+            finalExponent: resExp,
+            binaryOutput: finalOutput.binary,
+            hexOutput: finalOutput.hex
+        });
 
-        return { journal, result: finalOutput };
+        return trace.getObject(); 
     }
 
     static executeDivision(valA, valB) {
-        const journal = new ExecutionJournal(`Division (${valA} / ${valB})`);
+        const trace = new TraceBuilder();
+        trace.setOperation(`Division: ${valA} / ${valB}`);
 
-        journal.startPhase("Decode & Sign Resolution");
         const A = IEEE754Transcoder.decode(valA);
         const B = IEEE754Transcoder.decode(valB);
-        
         const resSign = A.sign ^ B.sign;
 
+        trace.setInitial({
+            operandA: { sign: A.sign, exponent: A.exponent, significandBase10: A.mantissa.toString(10) },
+            operandB: { sign: B.sign, exponent: B.exponent, significandBase10: B.mantissa.toString(10) },
+            resultSign: resSign
+        });
+
         if (B.exponent === 0n && B.fraction === 0n) {
-            journal.record(`Exception: Division by Zero.`);
-            return { journal, result: IEEE754Transcoder.encode(resSign, 0x7FFn, 0n) };
+            trace.setFinal({ error: "Division by Zero" });
+            return trace.getObject();
         }
 
-        journal.startPhase("Exponent Calculation");
         let resExp = A.exponent - B.exponent + IEEE754Transcoder.BIAS;
+        trace.setAligned({
+            exponentCalculation: `${A.exponent} - ${B.exponent} + ${IEEE754Transcoder.BIAS}`,
+            targetExponent: resExp
+        });
 
-        journal.startPhase("Mantissa Division (Extended Precision)");
         const shiftedDividend = A.mantissa << 56n;
         let rawQuotientExt = shiftedDividend / B.mantissa;
         const remainder = shiftedDividend % B.mantissa;
-        
         let sticky = remainder !== 0n ? 1n : 0n;
 
-        journal.startPhase("Normalization");
+        trace.setRaw({
+            mathEquationBase10: `${shiftedDividend.toString(10)} / ${B.mantissa.toString(10)}`,
+            rawQuotientBase10: rawQuotientExt.toString(10),
+            remainderBase10: remainder.toString(10)
+        });
+
         if (rawQuotientExt >= (1n << 56n)) {
             sticky |= (rawQuotientExt & 1n);
             rawQuotientExt >>= 1n;
@@ -209,22 +224,17 @@ class FloatingPointALU {
             rawQuotientExt <<= 1n;
             resExp -= 1n;
         }
-        
         rawQuotientExt |= sticky;
 
-        journal.startPhase("GRS Extraction & Rounding");
         const s = rawQuotientExt & 1n;
         const r = (rawQuotientExt >> 1n) & 1n;
         const g = (rawQuotientExt >> 2n) & 1n;
-        
         let resMantissa = rawQuotientExt >> 3n;
 
-        journal.record(`Extracted GRS -> Guard: ${g}, Round: ${r}, Sticky: ${s}`);
-
+        let roundedUp = false;
         if (g === 1n && (r === 1n || s === 1n || (resMantissa & 1n) === 1n)) {
             resMantissa += 1n;
-            journal.record(`Rounded Up (+1 to mantissa).`);
-            
+            roundedUp = true;
             if (resMantissa >= (1n << 53n)) {
                 resMantissa >>= 1n;
                 resExp += 1n;
@@ -234,9 +244,15 @@ class FloatingPointALU {
         const finalFraction = resMantissa & 0xFFFFFFFFFFFFFn;
         const finalOutput = IEEE754Transcoder.encode(resSign, resExp, finalFraction);
 
-        journal.record(`FINAL BINARY: ${finalOutput.binary}`);
-        journal.record(`FINAL HEX:    ${finalOutput.hex}`);
+        trace.setFinal({
+            extractedGRS: `${g}${r}${s}`,
+            wasRoundedUp: roundedUp,
+            finalSignificandBase10: resMantissa.toString(10),
+            finalExponent: resExp,
+            binaryOutput: finalOutput.binary,
+            hexOutput: finalOutput.hex
+        });
 
-        return { journal, result: finalOutput };
+        return trace.getObject(); 
     }
 }
