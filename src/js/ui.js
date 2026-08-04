@@ -65,13 +65,25 @@ document.addEventListener("DOMContentLoaded", () => {
             
             if (isHex) {
                 const decoded = decodeDecimal64(inputVal);
+                
+                // Determine true type (handling qNaN vs sNaN based on hex prefix)
+                let displayType = decoded.type;
+                const upperHex = inputVal.toUpperCase().replace('0X', '');
+                if (displayType === 'NaN' || displayType.includes('NaN')) {
+                    displayType = upperHex.startsWith('7E') || upperHex.startsWith('FE') ? 'Signaling NaN (sNaN)' : 'Quiet NaN (qNaN)';
+                }
+
+                // Format the sign properly
+                const signStr = (decoded.sign === 1n || decoded.sign === 1 || decoded.sign === '-') ? '1 (-)' : '0 (+)';
+                const isNegative = signStr.includes('-');
+
                 outputDiv.innerHTML = `
                     <h3 class="text-cyan text-upper trace-header">Decoded Result</h3>
                     <div class="text-mono trace-container" style="font-size: 1.2rem; margin-top: 1.5rem;">
-                        <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Type:</span> <span>${decoded.type}</span></div>
-                        <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Sign:</span> <span>${decoded.sign}</span></div>
+                        <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Type:</span> <span class="text-yellow text-bold">${displayType}</span></div>
+                        <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Sign Bit:</span> <span>${signStr}</span></div>
                         <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Exponent:</span> <span>${decoded.exponent}</span></div>
-                        <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Coefficient:</span> <span class="break-text">${decoded.coefficient}</span></div>
+                        <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Coefficient:</span> <span class="break-text">${isNegative ? '-' : ''}${decoded.coefficient}</span></div>
                     </div>
                 `;
             } else {
@@ -79,7 +91,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 outputDiv.innerHTML = `
                     <h3 class="text-cyan text-upper trace-header">Encoded Result</h3>
                     <div class="text-mono trace-container" style="font-size: 1.2rem; margin-top: 1.5rem;">
-                        <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Type:</span> <span>${encoded.type}</span></div>
+                        <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Type:</span> <span class="text-yellow text-bold">${encoded.type}</span></div>
                         <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Hex:</span> <span class="text-yellow text-bold" style="font-size: 1.4rem;">0x${encoded.hex}</span></div>
                         <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Binary:</span><br>
                         <span class="break-text" style="font-size: 1rem; color: var(--text-muted); margin-top: 0.5rem; display: block;">${encoded.binary}</span></div>
@@ -89,7 +101,7 @@ document.addEventListener("DOMContentLoaded", () => {
             
             // Add the same smooth fade-in animation used by the ALU
             gsap.from("#converter-output .row", { opacity: 0, x: -20, duration: 0.4, stagger: 0.1, ease: "power2.out" });
-            
+
         } catch (error) {
             outputDiv.innerHTML = `<div class="text-bold" style="color: var(--accent-magenta);">Error: ${error.message}</div>`;
         }
@@ -175,18 +187,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
         try {
             const parseOperand = (val) => {
+                val = val.trim();
                 const isHex = /^0x[0-9a-fA-F]{16}$/i.test(val) || /^[0-9a-fA-F]{16}$/i.test(val);
                 if (isHex) {
+                    const cleanHex = val.toLowerCase().replace('0x', '');
                     const decoded = decodeDecimal64(val);
-                    let decVal;
-                    if (decoded.type === 'NaN') {
-                        decVal = 'NaN';
-                    } else if (decoded.type === 'Infinity') {
-                        decVal = decoded.sign === 1n ? '-Infinity' : 'Infinity';
-                    } else {
-                        decVal = (decoded.sign === 1n ? '-' : '') + decoded.coefficient.toString() + 'e' + decoded.exponent.toString();
-                    }
-                    return { rawStr: decVal, encoded: encodeDecimal64(decVal) };
+                    let decVal = decoded.type.includes('NaN') ? 'NaN' : 
+                                 decoded.type.includes('Infinity') ? (decoded.sign == 1 ? '-Infinity' : 'Infinity') : 
+                                 (decoded.sign == 1 ? '-' : '') + decoded.coefficient + 'e' + decoded.exponent;
+                    
+                    // Force the encoded object to strictly use the user's hex to avoid round-trip math bugs
+                    let safeEncoded = encodeDecimal64(decVal);
+                    safeEncoded.hex = cleanHex; 
+                    return { rawStr: decVal, encoded: safeEncoded };
                 }
                 return { rawStr: val, encoded: encodeDecimal64(val) };
             };
@@ -283,6 +296,10 @@ document.addEventListener("DOMContentLoaded", () => {
             let msd = coeffStr[0];
             let msdBin = parseInt(msd, 10).toString(2).padStart(4, '0');
             
+            // Calculate Standard Decimal for display (e.g., 13.25)
+            let standardDecimal = Number(coeffStr) * Math.pow(10, exp);
+            if (isNeg) standardDecimal = -standardDecimal;
+
             let binParts = result.finalBinary.split(' ');
             let signBin = binParts[0];
             let comboBin = binParts[1];
@@ -297,7 +314,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     <div style="margin-bottom: 1.2rem;">
                         <span class="text-muted text-bold" style="display: block; margin-bottom: 0.5rem;">i) Decimal Breakdown:</span>
                         <div class="rubric-indent">
-                            <div style="margin-bottom: 0.5rem; font-size: 1.4rem;">${isNeg ? '-' : ''}${coeffStr} x 10<sup>${exp}</sup></div>
+                            <div style="margin-bottom: 0.2rem; font-size: 1.4rem;">${isNeg ? '-' : ''}${coeffStr} x 10<sup>${exp}</sup></div>
+                            <div style="margin-bottom: 0.8rem; color: var(--text-muted);">Standard Value: <strong class="text-cyan">${standardDecimal}</strong></div>
+                            
                             <div>Significand in decimal? <strong class="text-cyan">yes</strong></div>
                             <div>Base-10? <strong class="text-cyan">yes</strong></div>
                             <div>Normalized? <strong class="text-cyan">Yes, 16 whole digits</strong></div>
@@ -336,8 +355,9 @@ document.addEventListener("DOMContentLoaded", () => {
                         </div>
                         <div class="row operand-b" style="margin-bottom: 1.5rem;">
                             <span class="label-fixed">B (exp ${t.operandB.exp}):</span> 
-                            <span class="digits b-digits" style="letter-spacing: 2px;">${t.operandB.aligned}</span>
-                            <span class="grs-bits" style="opacity: 0; margin-left: 15px; font-weight: bold;">[GRS: ${t.grsBits}]</span>
+                            <!-- Added display: inline-block below so GSAP can move the spans -->
+                            <span class="digits b-digits" style="letter-spacing: 2px; display: inline-block;">${t.operandB.aligned}</span>
+                            <span class="grs-bits" style="opacity: 0; margin-left: 15px; font-weight: bold; display: inline-block;">[GRS: ${t.grsBits}]</span>
                         </div>
                         <hr class="divider">
                         <div class="row result-row text-cyan" style="margin-bottom: 0.8rem;">
@@ -348,10 +368,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     </div>
                 `;
 
+                // Strictly scoped to #alu-panel to prevent overlapping opacity bugs
                 const tl = gsap.timeline();
-                tl.from(".row", { opacity: 0, y: 15, duration: 0.4, stagger: 0.1, ease: "power2.out" })
-                  .to(".b-digits", { x: 15, duration: 0.8, ease: "power2.out", delay: 0.2 })
-                  .to(".grs-bits", { opacity: 1, color: "#ffb703", textShadow: "0px 0px 10px rgba(255, 183, 3, 0.8)", duration: 0.4, x: 15 }, "-=0.5");
+                tl.from("#alu-panel .row", { opacity: 0, y: 15, duration: 0.4, stagger: 0.1, ease: "power2.out" })
+                  .to("#alu-panel .b-digits", { x: 15, duration: 0.8, ease: "power2.out", delay: 0.2 })
+                  .to("#alu-panel .grs-bits", { opacity: 1, color: "#ffb703", textShadow: "0px 0px 10px rgba(255, 183, 3, 0.8)", duration: 0.4, x: 15 }, "-=0.5");
                   
             } else {
                 traceOutput.innerHTML = `
@@ -366,7 +387,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     </div>
                 `;
                 
-                gsap.from(".row", { opacity: 0, x: -20, duration: 0.4, stagger: 0.1, ease: "power2.out" });
+                // Strictly scoped to #alu-panel
+                gsap.from("#alu-panel .row", { opacity: 0, x: -20, duration: 0.4, stagger: 0.1, ease: "power2.out" });
             }
 
         } catch (error) {

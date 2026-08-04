@@ -481,10 +481,11 @@ select option {
     }
     
     /* Stack inline labels */
-    .label-fixed, .label-fixed-wide {
-        display: block;
-        width: 100%;
-        margin-bottom: 0.3rem;
+    .label-fixed-wide {
+    display: inline-block;
+    min-width: 250px; 
+    white-space: nowrap; 
+    color: var(--text-muted);
     }
 
     /* Adjust footer */
