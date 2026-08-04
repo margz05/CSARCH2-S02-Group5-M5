@@ -139,6 +139,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             const r = result.results;
+            const signPrefix = result.parsed.sign === 1 ? '-' : '';
             
             outputDiv.innerHTML = `
                 <h3 class="text-cyan text-upper trace-header">Rounding (Base ${base})</h3>
@@ -149,10 +150,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     <hr class="divider">
                     
                     <div class="grid-2-col">
-                        <div><strong class="text-cyan">Truncate:</strong><br> ${r.truncate.roundedDigits} <span class="text-muted" style="font-size: 0.9rem;">(exp ${r.truncate.finalExponent})</span></div>
-                        <div><strong class="text-cyan">Round Up:</strong><br> ${r.roundUp.roundedDigits} <span class="text-muted" style="font-size: 0.9rem;">(exp ${r.roundUp.finalExponent})</span></div>
-                        <div><strong class="text-cyan">Round Down:</strong><br> ${r.roundDown.roundedDigits} <span class="text-muted" style="font-size: 0.9rem;">(exp ${r.roundDown.finalExponent})</span></div>
-                        <div><strong class="text-cyan">Round Nearest:</strong><br> ${r.roundToNearest.roundedDigits} <span class="text-muted" style="font-size: 0.9rem;">(exp ${r.roundToNearest.finalExponent})</span></div>
+                        <div><strong class="text-cyan">Truncate:</strong><br> ${signPrefix}${r.truncate.roundedDigits} <span class="text-muted" style="font-size: 0.9rem;">(exp ${r.truncate.finalExponent})</span></div>
+                        <div><strong class="text-cyan">Round Up:</strong><br> ${signPrefix}${r.roundUp.roundedDigits} <span class="text-muted" style="font-size: 0.9rem;">(exp ${r.roundUp.finalExponent})</span></div>
+                        <div><strong class="text-cyan">Round Down:</strong><br> ${signPrefix}${r.roundDown.roundedDigits} <span class="text-muted" style="font-size: 0.9rem;">(exp ${r.roundDown.finalExponent})</span></div>
+                        <div><strong class="text-cyan">Round Nearest:</strong><br> ${signPrefix}${r.roundToNearest.roundedDigits} <span class="text-muted" style="font-size: 0.9rem;">(exp ${r.roundToNearest.finalExponent})</span></div>
                     </div>
                     
                     <hr class="divider">
