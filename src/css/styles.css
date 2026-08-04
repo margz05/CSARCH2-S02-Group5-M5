@@ -369,9 +369,7 @@ input.error-state, select.error-state {
     margin-top: 1rem !important;
 }
 
-/* ==========================================
-   Custom Select Dropdown Styling
-   ========================================== */
+/* Custom Select Dropdown Styling */
 select {
     /* Strip away the default OS arrow and styling */
     -webkit-appearance: none;
@@ -410,4 +408,75 @@ select option {
     font-family: 'Courier New', Courier, monospace;
     font-size: 1.1rem;
     padding: 1rem; 
+}
+
+/* Responsive Design (Mobile & Tablet) */
+
+/* Tablet Adjustments */
+@media screen and (max-width: 950px) {
+    .split-layout {
+        grid-template-columns: 1fr; 
+        gap: 2rem;
+    }
+    
+    .dashboard {
+        padding: 2rem 1.5rem;
+    }
+}
+
+/* Mobile Adjustments */
+@media screen and (max-width: 650px) {
+    /* Stack and center the navbar */
+    .navbar {
+        flex-direction: column;
+        padding: 1rem;
+        gap: 1rem;
+        text-align: center;
+    }
+
+    .tabs {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 1rem;
+    }
+
+    .tab-btn {
+        margin-left: 0;
+        font-size: 0.85rem;
+    }
+
+    /* Shrink panels and inputs */
+    .panel {
+        padding: 1.5rem;
+    }
+
+    /* Handle the long trace outputs */
+    .alu-trace-canvas {
+        padding: 1.5rem 1rem;
+        font-size: 1rem; 
+        overflow-x: auto; 
+    }
+    
+    .result-box {
+        padding: 1rem;
+        font-size: 1rem;
+    }
+
+    /* Fix the rubric grid squeezing */
+    .rubric-grid-header, .rubric-grid-data {
+        min-width: 500px;
+    }
+    
+    /* Stack inline labels */
+    .label-fixed, .label-fixed-wide {
+        display: block;
+        width: 100%;
+        margin-bottom: 0.3rem;
+    }
+
+    /* Adjust footer */
+    .project-footer {
+        padding: 1.5rem 1rem;
+    }
 }
