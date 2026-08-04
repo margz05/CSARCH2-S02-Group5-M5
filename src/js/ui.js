@@ -66,26 +66,30 @@ document.addEventListener("DOMContentLoaded", () => {
             if (isHex) {
                 const decoded = decodeDecimal64(inputVal);
                 outputDiv.innerHTML = `
-                    <div class="text-mono result-box cyan-left-border" style="margin-top: 1.5rem;">
-                        <strong class="text-cyan text-upper">Decoded Result</strong><br><br>
-                        <div><span class="label-fixed">Type:</span> ${decoded.type}</div>
-                        <div><span class="label-fixed">Sign:</span> ${decoded.sign}</div>
-                        <div><span class="label-fixed">Exponent:</span> ${decoded.exponent}</div>
-                        <div><span class="label-fixed">Coefficient:</span> ${decoded.coefficient}</div>
+                    <h3 class="text-cyan text-upper trace-header">Decoded Result</h3>
+                    <div class="text-mono trace-container" style="font-size: 1.2rem; margin-top: 1.5rem;">
+                        <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Type:</span> <span>${decoded.type}</span></div>
+                        <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Sign:</span> <span>${decoded.sign}</span></div>
+                        <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Exponent:</span> <span>${decoded.exponent}</span></div>
+                        <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Coefficient:</span> <span class="break-text">${decoded.coefficient}</span></div>
                     </div>
                 `;
             } else {
                 const encoded = encodeDecimal64(inputVal);
                 outputDiv.innerHTML = `
-                    <div class="text-mono result-box cyan-left-border" style="margin-top: 1.5rem;">
-                        <strong class="text-cyan text-upper">Encoded Result</strong><br><br>
-                        <div><span class="label-fixed">Type:</span> ${encoded.type}</div>
-                        <div><span class="label-fixed">Hex:</span> <span class="text-yellow text-bold">0x${encoded.hex}</span></div>
-                        <div><span class="label-fixed">Binary:</span><br>
-                        <span class="break-text" style="font-size: 0.9rem;">${encoded.binary}</span></div>
+                    <h3 class="text-cyan text-upper trace-header">Encoded Result</h3>
+                    <div class="text-mono trace-container" style="font-size: 1.2rem; margin-top: 1.5rem;">
+                        <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Type:</span> <span>${encoded.type}</span></div>
+                        <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Hex:</span> <span class="text-yellow text-bold" style="font-size: 1.4rem;">0x${encoded.hex}</span></div>
+                        <div class="row" style="margin-bottom: 0.8rem;"><span class="label-fixed-wide">Binary:</span><br>
+                        <span class="break-text" style="font-size: 1rem; color: var(--text-muted); margin-top: 0.5rem; display: block;">${encoded.binary}</span></div>
                     </div>
                 `;
             }
+            
+            // Add the same smooth fade-in animation used by the ALU
+            gsap.from("#converter-output .row", { opacity: 0, x: -20, duration: 0.4, stagger: 0.1, ease: "power2.out" });
+            
         } catch (error) {
             outputDiv.innerHTML = `<div class="text-bold" style="color: var(--accent-magenta);">Error: ${error.message}</div>`;
         }
