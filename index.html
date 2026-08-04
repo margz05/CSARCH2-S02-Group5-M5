@@ -1,4 +1,95 @@
 <!-- 
-Assigned to: Marga
-The main webpage structure. Contains all the HTML for input forms, buttons, and the output display panels.
+Assigned to: Ramos, Marga - Webpage Structure
 -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decimal64 Simulator | Group 5</title>
+    <!-- Add your custom favicon here -->
+    <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="src/css/styles.css">
+</head>
+<body>
+
+    <!-- Top Navigation -->
+    <nav class="navbar">
+        <div class="logo">Machine 5: Decimal64</div>
+        <div class="tabs">
+            <button class="tab-btn active" data-target="converter-panel">Decoder</button>
+            <button class="tab-btn" data-target="rounding-panel">Precision Engine</button>
+            <button class="tab-btn" data-target="alu-panel">ALU</button>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="dashboard">
+        
+        <!-- MODULE 1: The Converter -->
+        <section id="converter-panel" class="panel active-panel">
+            <h2>Decimal-based Double Precision</h2>
+            <div class="input-group">
+                <input type="text" id="converter-input" placeholder="Enter decimal or hex...">
+                <button id="convert-btn">Encode / Decode</button>
+            </div>
+            <div id="converter-output" class="output-display">
+                <!-- Output goes here -->
+            </div>
+        </section>
+
+        <!-- MODULE 2: The Rounding Engine -->
+        <section id="rounding-panel" class="panel hidden-panel split-layout">
+            <div class="rounding-controls">
+                <h2>Rounding Demonstrator</h2>
+                <input type="text" id="round-val" placeholder="Enter number (e.g., 123.4567)">
+                <input type="number" id="round-precision" placeholder="Target Precision (e.g., 5)" min="1">
+                <select id="round-base">
+                    <option value="10">Base 10 (Decimal)</option>
+                    <option value="2">Base 2 (Binary)</option>
+                </select>
+                <button id="round-btn">Apply Rounding Rules</button>
+            </div>
+            
+            <div class="alu-trace-canvas" id="rounding-output-canvas">
+                <div id="round-results">
+                    <div style="color: var(--text-muted);">Waiting for input...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- MODULE 3: The ALU (The Animation Canvas) -->
+        <section id="alu-panel" class="panel hidden-panel split-layout">
+            <div class="alu-controls">
+                <h2>Arithmetic Logic Unit</h2>
+                <input type="text" id="alu-val-a" placeholder="Operand A">
+                <input type="text" id="alu-val-b" placeholder="Operand B">
+                <select id="alu-operation">
+                    <option value="subtract">Subtraction</option>
+                    <option value="divide">Division</option>
+                </select>
+                <button id="calculate-btn">Calculate</button>
+            </div>
+            
+            <div class="alu-trace-canvas">
+                <div id="trace-output" class="trace-container">
+                    <div class="row operand-a">
+                        <span class="label">A (exp 5):</span> 
+                        <span class="digits">1.2345000</span>
+                    </div>
+                    <div class="row operand-b">
+                        <span class="label">B (exp 2):</span> 
+                        <span class="digits b-digits">9.8765</span><span class="grs-bits" style="opacity: 0;">000</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- GSAP for Animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script type="module" src="src/js/ui.js"></script>
+</body>
+</html>

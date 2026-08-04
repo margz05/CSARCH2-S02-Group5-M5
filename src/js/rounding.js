@@ -1,5 +1,5 @@
 /*
-Assigned to: (Tiongco, Kyan - Rounding Validator)
+Assigned to: Tiongco, Kyan - Rounding Validator
 Purpose: Manages precision rules and Guard, Round, and Sticky (GRS) evaluation.
          - Contains a standalone utility for the Rounding Demonstrator feature.
          - Evaluates bits/digits shifted out during ALU exponent alignment to set GRS.
@@ -275,3 +275,5 @@ function allOutput(digits, exponent, sign, precision = 16, base = 10)
     roundToNearest: roundingValidator(digits, exponent, sign, "roundToNearest", precision, base)
   };
 }
+
+export { decimalRounding, binaryRounding, roundingValidator };

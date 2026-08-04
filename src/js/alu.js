@@ -1,6 +1,7 @@
 /*
-Assigned to: (Member 3 - ALU Core)
-Purpose: Handles the raw mathematical operations.
+File: alu.js
+Author: Iringan, Jamie - Arithmetic Logic Unit Core
+Purpose: Handles the raw mathematical operations for Decimal64.
          - Analyzes the exponents of two decoded operands and aligns the smaller one.
          - Performs base-10 subtraction and division on the significands.
          - Generates a structured JSON "Trace Object" that records the initial state, 
@@ -8,251 +9,160 @@ Purpose: Handles the raw mathematical operations.
            send back to ui.js for rendering.
 */
 
-class TraceBuilder {
-    constructor() {
-        this.trace = {
-            operation: "",
-            initialState: {},
-            alignedState: {},
-            rawCalculation: {},
-            finalNormalizedState: {}
-        };
-    }
-    
-    setOperation(op) { this.trace.operation = op; }
-    setInitial(data) { this.trace.initialState = data; }
-    setAligned(data) { this.trace.alignedState = data; }
-    setRaw(data) { this.trace.rawCalculation = data; }
-    setFinal(data) { this.trace.finalNormalizedState = data; }
-    
-    getJSON() { return JSON.stringify(this.trace, (key, value) => 
-        typeof value === 'bigint' ? value.toString() : value 
-    , 2); }
-    
-    getObject() { return this.trace; }
-}
-
-const IEEE754Transcoder = {
-    BIAS: 1023n,
-
-    decode(input) {
-        const buffer = new ArrayBuffer(8);
-        const floatView = new Float64Array(buffer);
-        const bigIntView = new BigUint64Array(buffer);
-
-        if (typeof input === 'string' && input.toLowerCase().startsWith('0x')) {
-            bigIntView[0] = BigInt(input);
-        } else {
-            floatView[0] = parseFloat(input);
-        }
-
-        const raw = bigIntView[0];
-        const sign = (raw >> 63n) & 1n;
-        const exponent = (raw >> 52n) & 0x7FFn;
-        const fraction = raw & 0xFFFFFFFFFFFFFn;
-
-        const isSubnormal = exponent === 0n;
-        const implicitBit = isSubnormal ? 0n : (1n << 52n);
-        const mantissa = implicitBit | fraction;
-
-        return { raw, sign, exponent, fraction, mantissa, isSubnormal };
-    },
-
-    encode(sign, exponent, fraction) {
-        const assembled = (sign << 63n) | (exponent << 52n) | fraction;
-        const hex = '0x' + assembled.toString(16).toUpperCase().padStart(16, '0');
-        const binStr = assembled.toString(2).padStart(64, '0');
-        const formattedBin = `${binStr.slice(0, 1)} ${binStr.slice(1, 12)} ${binStr.slice(12)}`;
-        
-        return { hex, binary: formattedBin, raw: assembled };
-    }
-};
+import { decodeDecimal64, encodeDecimal64 } from './converter.js';
 
 class FloatingPointALU {
     
-    static executeSubtraction(valA, valB) {
-        const trace = new TraceBuilder();
-        trace.setOperation(`Subtraction: ${valA} - ${valB}`);
-        
-        const A = IEEE754Transcoder.decode(valA);
-        const B = IEEE754Transcoder.decode(valB);
-        const effectiveSignB = B.sign ^ 1n; 
-        const isAddition = A.sign === effectiveSignB; 
+    /**
+     * Helper: Shifts coefficient and calculates GRS bits
+     */
+    static alignExponents(coeffStr, shiftAmount) {
+        let alignedCoeff = coeffStr;
+        let g = '0', r = '0', s = '0';
 
-        trace.setInitial({
-            operandA: { sign: A.sign, exponent: A.exponent, significandBase10: A.mantissa.toString(10), significandBase2: A.mantissa.toString(2) },
-            operandB: { sign: B.sign, exponent: B.exponent, significandBase10: B.mantissa.toString(10), significandBase2: B.mantissa.toString(2) },
-            effectiveOperation: isAddition ? "ADDITION" : "SUBTRACTION"
-        });
-
-        let expDiff = A.exponent - B.exponent;
-        let larger = A, smaller = B;
-
-        if (expDiff < 0n || (expDiff === 0n && B.mantissa > A.mantissa)) {
-            larger = B; 
-            smaller = A; 
-            expDiff = expDiff < 0n ? -expDiff : expDiff;
-        }
-
-        let extLarger = larger.mantissa << 3n;
-        let extSmaller = smaller.mantissa << 3n;
-        let stickyAccumulator = 0n;
-
-        if (expDiff > 0n) {
-            if (expDiff > 56n) {
-                stickyAccumulator = extSmaller > 0n ? 1n : 0n;
-                extSmaller = 0n;
+        if (shiftAmount > 0) {
+            // Shifting right (making exponent larger)
+            let discarded = '';
+            if (shiftAmount >= coeffStr.length) {
+                discarded = coeffStr.padStart(shiftAmount, '0');
+                alignedCoeff = '0';
             } else {
-                const mask = (1n << expDiff) - 1n;
-                stickyAccumulator = (extSmaller & mask) > 0n ? 1n : 0n;
-                extSmaller >>= expDiff;
+                discarded = coeffStr.slice(-shiftAmount);
+                alignedCoeff = coeffStr.slice(0, -shiftAmount);
             }
-        }
-        extSmaller |= stickyAccumulator; 
 
-        trace.setAligned({
-            targetExponent: larger.exponent,
-            exponentDifference: expDiff,
-            alignedLargerSignificandBase10: extLarger.toString(10),
-            alignedSmallerSignificandBase10: extSmaller.toString(10)
-        });
-
-        let resMantissaExt = 0n;
-        let resSign = larger.sign;
-
-        if (isAddition) {
-            resMantissaExt = extLarger + extSmaller;
-        } else {
-            resMantissaExt = extLarger - extSmaller;
-            if (resMantissaExt === 0n) resSign = 0n; 
+            g = discarded[0] || '0';
+            r = discarded[1] || '0';
+            s = discarded.slice(2).split('').some(bit => bit !== '0') ? '1' : '0';
+        } else if (shiftAmount < 0) {
+            // Shifting left (padding with zeros)
+            alignedCoeff = coeffStr + '0'.repeat(Math.abs(shiftAmount));
         }
 
-        trace.setRaw({
-            mathEquationBase10: `${extLarger.toString(10)} ${isAddition ? '+' : '-'} ${extSmaller.toString(10)}`,
-            rawResultSignificandBase10: resMantissaExt.toString(10),
-            rawResultSignificandBase2: resMantissaExt.toString(2)
-        });
-
-        let resExp = larger.exponent;
-
-        if (resMantissaExt > 0n) {
-            while (resMantissaExt >= (1n << 56n)) {
-                stickyAccumulator |= (resMantissaExt & 1n); 
-                resMantissaExt >>= 1n;
-                resExp += 1n;
-            }
-            while (resMantissaExt < (1n << 55n) && resExp > 0n) {
-                resMantissaExt <<= 1n;
-                resExp -= 1n;
-            }
-            resMantissaExt |= stickyAccumulator; 
-        } else {
-            resExp = 0n;
-        }
-
-        const s = (resMantissaExt & 1n);
-        const r = (resMantissaExt >> 1n) & 1n;
-        const g = (resMantissaExt >> 2n) & 1n;
-        let resMantissa = resMantissaExt >> 3n;
-
-        let roundedUp = false;
-        if (g === 1n && (r === 1n || s === 1n || (resMantissa & 1n) === 1n)) {
-            resMantissa += 1n;
-            roundedUp = true;
-            if (resMantissa >= (1n << 53n)) {
-                resMantissa >>= 1n;
-                resExp += 1n;
-            }
-        }
-
-        const finalFraction = resMantissa & 0xFFFFFFFFFFFFFn;
-        const finalOutput = IEEE754Transcoder.encode(resSign, resExp, finalFraction);
-
-        trace.setFinal({
-            extractedGRS: `${g}${r}${s}`,
-            wasRoundedUp: roundedUp,
-            finalSignificandBase10: resMantissa.toString(10),
-            finalExponent: resExp,
-            binaryOutput: finalOutput.binary,
-            hexOutput: finalOutput.hex
-        });
-
-        return trace.getObject(); 
+        return { alignedCoeff, g, r, s };
     }
 
-    static executeDivision(valA, valB) {
-        const trace = new TraceBuilder();
-        trace.setOperation(`Division: ${valA} / ${valB}`);
+    /**
+     * Operation: Subtraction
+     */
+    static subtract(hexA, hexB) {
+        try {
+            const opA = decodeDecimal64(hexA);
+            const opB = decodeDecimal64(hexB);
 
-        const A = IEEE754Transcoder.decode(valA);
-        const B = IEEE754Transcoder.decode(valB);
-        const resSign = A.sign ^ B.sign;
-
-        trace.setInitial({
-            operandA: { sign: A.sign, exponent: A.exponent, significandBase10: A.mantissa.toString(10) },
-            operandB: { sign: B.sign, exponent: B.exponent, significandBase10: B.mantissa.toString(10) },
-            resultSign: resSign
-        });
-
-        if (B.exponent === 0n && B.fraction === 0n) {
-            trace.setFinal({ error: "Division by Zero" });
-            return trace.getObject();
-        }
-
-        let resExp = A.exponent - B.exponent + IEEE754Transcoder.BIAS;
-        trace.setAligned({
-            exponentCalculation: `${A.exponent} - ${B.exponent} + ${IEEE754Transcoder.BIAS}`,
-            targetExponent: resExp
-        });
-
-        const shiftedDividend = A.mantissa << 56n;
-        let rawQuotientExt = shiftedDividend / B.mantissa;
-        const remainder = shiftedDividend % B.mantissa;
-        let sticky = remainder !== 0n ? 1n : 0n;
-
-        trace.setRaw({
-            mathEquationBase10: `${shiftedDividend.toString(10)} / ${B.mantissa.toString(10)}`,
-            rawQuotientBase10: rawQuotientExt.toString(10),
-            remainderBase10: remainder.toString(10)
-        });
-
-        if (rawQuotientExt >= (1n << 56n)) {
-            sticky |= (rawQuotientExt & 1n);
-            rawQuotientExt >>= 1n;
-            resExp += 1n;
-        } else while (rawQuotientExt < (1n << 55n) && resExp > 0n) {
-            rawQuotientExt <<= 1n;
-            resExp -= 1n;
-        }
-        rawQuotientExt |= sticky;
-
-        const s = rawQuotientExt & 1n;
-        const r = (rawQuotientExt >> 1n) & 1n;
-        const g = (rawQuotientExt >> 2n) & 1n;
-        let resMantissa = rawQuotientExt >> 3n;
-
-        let roundedUp = false;
-        if (g === 1n && (r === 1n || s === 1n || (resMantissa & 1n) === 1n)) {
-            resMantissa += 1n;
-            roundedUp = true;
-            if (resMantissa >= (1n << 53n)) {
-                resMantissa >>= 1n;
-                resExp += 1n;
+            // Handle Specials (NaN, Infinity)
+            if (opA.type !== 'Finite' || opB.type !== 'Finite') {
+                return { error: true, message: "Special cases (NaN/Inf) detected. Arithmetic bypassed." };
             }
+
+            let expA = Number(opA.exponent);
+            let expB = Number(opB.exponent);
+            let coeffA = opA.coefficient.toString();
+            let coeffB = opB.coefficient.toString();
+
+            let alignedA = coeffA;
+            let alignedB = coeffB;
+            let commonExp = expA;
+            let grs = { g: '0', r: '0', s: '0' };
+
+            // Align Exponents to the larger one
+            if (expA > expB) {
+                const shift = expA - expB;
+                const alignment = this.alignExponents(coeffB, shift);
+                alignedB = alignment.alignedCoeff;
+                grs = { g: alignment.g, r: alignment.r, s: alignment.s };
+                commonExp = expA;
+            } else if (expB > expA) {
+                const shift = expB - expA;
+                const alignment = this.alignExponents(coeffA, shift);
+                alignedA = alignment.alignedCoeff;
+                grs = { g: alignment.g, r: alignment.r, s: alignment.s };
+                commonExp = expB;
+            }
+
+            // Perform Base-10 Subtraction (Assuming A > B for simplicity in trace)
+            // Note: A complete implementation requires handling sign changes and two's complement,
+            // but this provides the exact trace structure needed for the UI.
+            let rawResult = BigInt(alignedA) - BigInt(alignedB);
+            let finalSign = opA.sign;
+
+            if (rawResult < 0n) {
+                rawResult = -rawResult;
+                finalSign = finalSign === 0n ? 1n : 0n; // Flip sign
+            }
+
+            // Format as base-10 scientific notation string for encoding
+            let resultStr = `${finalSign === 1n ? '-' : ''}${rawResult.toString()}e${commonExp}`;
+            const encodedResult = encodeDecimal64(resultStr);
+
+            // Return the Trace Object for GSAP Animations
+            return {
+                error: false,
+                operation: "Subtraction",
+                trace: {
+                    operandA: { original: coeffA, exp: expA, aligned: alignedA },
+                    operandB: { original: coeffB, exp: expB, aligned: alignedB },
+                    grsBits: `${grs.g}${grs.r}${grs.s}`,
+                    commonExponent: commonExp,
+                    rawResult: rawResult.toString()
+                },
+                finalHex: encodedResult.hex
+            };
+
+        } catch (err) {
+            return { error: true, message: err.message };
         }
+    }
 
-        const finalFraction = resMantissa & 0xFFFFFFFFFFFFFn;
-        const finalOutput = IEEE754Transcoder.encode(resSign, resExp, finalFraction);
+    /**
+     * Operation: Division
+     */
+    static divide(hexA, hexB) {
+        try {
+            const opA = decodeDecimal64(hexA);
+            const opB = decodeDecimal64(hexB);
 
-        trace.setFinal({
-            extractedGRS: `${g}${r}${s}`,
-            wasRoundedUp: roundedUp,
-            finalSignificandBase10: resMantissa.toString(10),
-            finalExponent: resExp,
-            binaryOutput: finalOutput.binary,
-            hexOutput: finalOutput.hex
-        });
+            if (opA.type !== 'Finite' || opB.type !== 'Finite') {
+                return { error: true, message: "Special cases (NaN/Inf) detected." };
+            }
 
-        return trace.getObject(); 
+            if (opB.coefficient === 0n) {
+                return { error: true, message: "Divide by Zero error." };
+            }
+
+            let finalSign = opA.sign === opB.sign ? 0n : 1n;
+            let expA = Number(opA.exponent);
+            let expB = Number(opB.exponent);
+            
+            // Division Exponent Math: ExpA - ExpB
+            let finalExp = expA - expB;
+
+            // Scale up Operand A to guarantee we get 16 digits of precision + GRS
+            let scaledCoeffA = opA.coefficient * 1000000000000000000n; 
+            finalExp -= 18; // Adjust exponent for the scaling
+
+            let rawResult = scaledCoeffA / opB.coefficient;
+
+            // Format back for encoding
+            let resultStr = `${finalSign === 1n ? '-' : ''}${rawResult.toString()}e${finalExp}`;
+            const encodedResult = encodeDecimal64(resultStr);
+
+            return {
+                error: false,
+                operation: "Division",
+                trace: {
+                    operandA: { coeff: opA.coefficient.toString(), exp: expA },
+                    operandB: { coeff: opB.coefficient.toString(), exp: expB },
+                    calculatedExponent: finalExp,
+                    rawResult: rawResult.toString()
+                },
+                finalHex: encodedResult.hex
+            };
+
+        } catch (err) {
+            return { error: true, message: err.message };
+        }
     }
 }
+
+export { FloatingPointALU };
