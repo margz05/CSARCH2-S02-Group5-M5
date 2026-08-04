@@ -42,7 +42,7 @@ class FloatingPointALU {
         return { alignedCoeff, g, r, s };
     }
 
-    /**
+/**
      * Operation: Subtraction
      */
     static subtract(hexA, hexB) {
@@ -80,19 +80,19 @@ class FloatingPointALU {
                 commonExp = expB;
             }
 
-            // Perform Base-10 Subtraction (Assuming A > B for simplicity in trace)
-            // Note: A complete implementation requires handling sign changes and two's complement,
-            // but this provides the exact trace structure needed for the UI.
-            let rawResult = BigInt(alignedA) - BigInt(alignedB);
-            let finalSign = opA.sign;
+            // Apply true mathematical signs based on decoded IEEE-754 sign bits
+            let valA = opA.sign === 1n ? -BigInt(alignedA) : BigInt(alignedA);
+            let valB = opB.sign === 1n ? -BigInt(alignedB) : BigInt(alignedB);
 
-            if (rawResult < 0n) {
-                rawResult = -rawResult;
-                finalSign = finalSign === 0n ? 1n : 0n; // Flip sign
-            }
+            // Perform Base-10 Subtraction
+            let rawSignedResult = valA - valB;
+            
+            // Extract final sign and absolute magnitude
+            let finalSign = rawSignedResult < 0n ? 1n : 0n;
+            let absResult = rawSignedResult < 0n ? -rawSignedResult : rawSignedResult;
 
             // Format as base-10 scientific notation string for encoding
-            let resultStr = `${finalSign === 1n ? '-' : ''}${rawResult.toString()}e${commonExp}`;
+            let resultStr = `${finalSign === 1n ? '-' : ''}${absResult.toString()}e${commonExp}`;
             const encodedResult = encodeDecimal64(resultStr);
 
             // Return the Trace Object for GSAP Animations
@@ -104,10 +104,12 @@ class FloatingPointALU {
                     operandB: { original: coeffB, exp: expB, aligned: alignedB },
                     grsBits: `${grs.g}${grs.r}${grs.s}`,
                     commonExponent: commonExp,
-                    rawResult: rawResult.toString()
+                    rawResult: (finalSign === 1n ? "-" : "") + absResult.toString() 
                 },
-                finalHex: encodedResult.hex
-            };
+                finalDecimal: resultStr,        
+                finalBinary: encodedResult.binary,
+                finalHex: encodedResult.hex      
+            };  
 
         } catch (err) {
             return { error: true, message: err.message };
@@ -137,9 +139,20 @@ class FloatingPointALU {
             // Division Exponent Math: ExpA - ExpB
             let finalExp = expA - expB;
 
-            // Scale up Operand A to guarantee we get 16 digits of precision + GRS
-            let scaledCoeffA = opA.coefficient * 1000000000000000000n; 
-            finalExp -= 18; // Adjust exponent for the scaling
+            // Dynamic Scaling: Guarantee ~18 digits of precision regardless of operand size
+            let strA = opA.coefficient.toString();
+            let strB = opB.coefficient.toString();
+            
+            let targetPrecision = 18;
+            let currentPrecision = strA.length - strB.length;
+            let scalePower = targetPrecision - currentPrecision;
+            
+            // If already heavily precise, we don't need to scale up
+            if (scalePower < 0) scalePower = 0; 
+
+            let scaleFactor = 10n ** BigInt(scalePower);
+            let scaledCoeffA = opA.coefficient * scaleFactor;
+            finalExp -= scalePower; // Adjust exponent downward based on the exact scale factor applied
 
             let rawResult = scaledCoeffA / opB.coefficient;
 
@@ -154,15 +167,18 @@ class FloatingPointALU {
                     operandA: { coeff: opA.coefficient.toString(), exp: expA },
                     operandB: { coeff: opB.coefficient.toString(), exp: expB },
                     calculatedExponent: finalExp,
-                    rawResult: rawResult.toString()
+                    rawResult: (finalSign === 1n ? "-" : "") + rawResult.toString()
                 },
-                finalHex: encodedResult.hex
+                finalDecimal: resultStr,            
+                finalBinary: encodedResult.binary, 
+                finalHex: encodedResult.hex         
             };
 
         } catch (err) {
             return { error: true, message: err.message };
         }
     }
+
 }
 
 export { FloatingPointALU };
