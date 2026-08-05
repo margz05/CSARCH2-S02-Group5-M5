@@ -16,6 +16,12 @@ This web application is a visual simulator for IEEE-754 Decimal64 floating-point
 
 - Kyan Tiongco (Rounding Engine) 
 
+## 🚀 **Live Deployment** 
+
+- **Live Website URL:** <u><mark>https://margz05.github.io/Machine5-Decimal64/</mark></u> 
+
+- **<mark>V</mark> ideo Walkthrough:** <u>https://youtu.be/LgZVHmTaI3g</u> 
+
 ## **DOCUMENTATION LOGS** 🛠 
 
 ### **UI/UX & System Integration** 
@@ -30,13 +36,13 @@ This web application is a visual simulator for IEEE-754 Decimal64 floating-point
 
 - **Responsive Grid & Layout Refinement:** Overhauled the application's layout using a responsive CSS Grid <mark>(split-layout)</mark> , adjusting column proportions <mark>(1fr 2.5fr)</mark> and expanding gap spacing <mark>(7rem)</mark> to ensure optimal visual breathing room. Enforced strict <mark>box-sizing: border-box</mark> across all form elements to completely eliminate mobile layout bleeding and container overflows. 
 
-- **Cyber/Hardware Dark Mode & Projector Safety:** Implemented a projector-safe theme featuring a slowly panning animated background grid <mark>(panGrid)</mark> , refined <mark>:root</mark> color tokens <mark>(#0f111a</mark> base, <mark>#00b4d8</mark> cyan accents, <mark>#a0aabf</mark> brightened muted text), and stripped away heavy text glows <mark>(text-shadow)</mark> to prevent smearing during academic presentations. 
+- **Cyber/Hardware Dark Mode & Projector Safety:** Implemented a projector-safe theme featuring a slowly panning animated background grid <mark>(panGrid)</mark> , refined <mark>:root</mark> color tokens <mark>(#0f111a</mark> base, <mark>#00b4d8</mark> cyan accents, <mark>#a0aabf</mark> brightened muted text), and 
 
-- **Component-Wide Terminal Architecture:** Refactored <mark>ui.js</mark> and <mark>index.html</mark> to unify all three modules (Decoder, Precision Engine, ALU) under a consistent, professional 
+stripped away heavy text glows <mark>(text-shadow)</mark> to prevent smearing during academic presentations. 
 
-terminal output aesthetic <mark>(.alu-trace-canvas)</mark> , complete with "Waiting for input..." initial states and zero-state placeholder isolation. 
+- **Component-Wide Terminal Architecture:** Refactored <mark>ui.js</mark> and <mark>index.html</mark> to unify all three modules (Decoder, Precision Engine, ALU) under a consistent, professional terminal output aesthetic <mark>(.alu-trace-canvas)</mark> , complete with "Waiting for input..." initial states and zero-state placeholder isolation. 
 
-- **Custom Interactive Form Elements:** Upgraded native <mark></mark> dropdown menus by stripping default OS styling, injecting a custom centered cyan SVG arrow, adding smooth hover/active lifts <mark>(translateY)</mark> , and overriding default gray list backgrounds with deep theme colors <mark>(--bg-base)</mark> . Scaled down action buttons <mark>(#convert-btn,</mark> etc.) to match input proportions cleanly. 
+- **Custom Interactive Form Elements:** Upgraded native <mark><select></mark> dropdown menus by stripping default OS styling, injecting a custom centered cyan SVG arrow, adding smooth hover/active lifts <mark>(translateY)</mark> , and overriding default gray list backgrounds with deep theme colors <mark>(--bg-base)</mark> . Scaled down action buttons <mark>(#convert-btn,</mark> etc.) to match input proportions cleanly. 
 
 - **Advanced Error Handling & Hex Parsing:** Engineered robust input validation helpers <mark>(triggerInputError)</mark> and fixed hex operand parsing in the ALU to securely accept valid Decimal64 hex strings without corrupting backend math logic. 
 
